@@ -18,6 +18,9 @@ import { ConversionCard } from '@/components/ConversionCard';
 import { BatchControls } from '@/components/BatchControls';
 import { LocalStatusBadge } from '@/components/LocalStatusBadge';
 import { EnhanceDialog } from '@/components/EnhanceDialog';
+import { SubscriptionBadge } from '@/components/SubscriptionBadge';
+import { PricingDialog } from '@/components/PricingDialog';
+import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { 
   getConversions, 
   saveConversion, 
@@ -26,6 +29,7 @@ import {
 } from '@/lib/db';
 import { convertVideoToAudio, ConversionFormat } from '@/lib/converter';
 import { useToast } from '@/hooks/use-toast';
+import { useSubscription } from '@/hooks/useSubscription';
 import { Toaster } from '@/components/ui/toaster';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,7 +50,12 @@ export default function AudioSyncPro() {
   const [activeTab, setActiveTab] = useState('converting');
   const [enhancingRecord, setEnhancingRecord] = useState<ConversionRecord | null>(null);
   const [isEnhanceOpen, setIsEnhanceOpen] = useState(false);
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const { toast } = useToast();
+  const { subscription } = useSubscription();
+
+  const FREE_TIER_LIMIT = 5;
 
   useEffect(() => {
     loadHistory();
@@ -58,6 +67,12 @@ export default function AudioSyncPro() {
   };
 
   const handleFilesSelected = (files: File[]) => {
+    // Check free tier limit
+    if (!subscription.isPremium && history.length >= FREE_TIER_LIMIT) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+
     const newPending = files.map(file => ({
       id: `pending-${Math.random().toString(36).substr(2, 9)}`,
       file,
@@ -175,6 +190,22 @@ export default function AudioSyncPro() {
         onEnhanced={loadHistory}
       />
       
+      <PricingDialog
+        isOpen={isPricingOpen}
+        onOpenChange={setIsPricingOpen}
+        currentTier={subscription.isPremium ? 'premium' : 'free'}
+      />
+
+      {showUpgradePrompt && (
+        <UpgradePrompt
+          onUpgradeClick={() => {
+            setShowUpgradePrompt(false);
+            setIsPricingOpen(true);
+          }}
+          message="You've reached your free tier limit. Upgrade to Premium for unlimited conversions!"
+        />
+      )}
+      
       {/* Premium Header */}
       <header className="sticky top-0 z-50 w-full px-6 py-4 flex items-center justify-between backdrop-blur-xl bg-white/70 border-b border-slate-200/60">
         <div className="flex items-center gap-3">
@@ -191,6 +222,10 @@ export default function AudioSyncPro() {
         </div>
         
         <div className="flex items-center gap-2">
+          <SubscriptionBadge
+            isPremium={subscription.isPremium}
+            onClick={() => setIsPricingOpen(true)}
+          />
           <Button variant="ghost" size="icon" className="rounded-full hover:bg-slate-100 text-slate-400">
             <Info className="h-4 w-4" />
           </Button>
@@ -209,6 +244,11 @@ export default function AudioSyncPro() {
           </h2>
           <p className="text-slate-500 max-w-sm text-sm md:text-base font-medium leading-relaxed">
             High-fidelity audio extraction powered by local AI. Your data stays in your browser.
+            {!subscription.isPremium && (
+              <span className="block text-xs mt-2 text-amber-600 font-semibold">
+                Free tier: {history.length}/{FREE_TIER_LIMIT} conversions used
+              </span>
+            )}
           </p>
         </div>
 
