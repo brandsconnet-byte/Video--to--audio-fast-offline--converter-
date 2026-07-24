@@ -62,7 +62,7 @@ const PRICING_TIERS: PricingTier[] = [
       'Email support',
       '1TB storage',
     ],
-    productId: 'pro_product_id', // Replace with actual Pro product ID
+    productId: process.env.NEXT_PUBLIC_POLAR_PRO_PRODUCT_ID || '',
   },
 ];
 
@@ -175,6 +175,8 @@ export function PricingDialog({
                 >
                   {currentTier === tier.id ? (
                     'Current Plan'
+                  ) : !tier.productId ? (
+                    'Coming Soon'
                   ) : (
                     <>
                       <CreditCard className="h-4 w-4 mr-2" />
