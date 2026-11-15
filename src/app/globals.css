@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
+    --background: 230 100% 98%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222 47% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 221 83% 53%;
-    --accent-foreground: 222 47% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221 83% 53%;
-    --radius: 1rem;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 226 60% 95%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 226 45% 94%;
+    --muted-foreground: 215 16% 42%;
+    --accent: 192 91% 38%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 78% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 226 42% 88%;
+    --input: 226 42% 88%;
+    --ring: 243 75% 59%;
+    --radius: 0.75rem;
   }
 }
 
@@ -31,8 +31,21 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
-    @apply bg-background text-foreground antialiased overflow-x-hidden;
+    @apply text-slate-900 antialiased overflow-x-hidden font-sans;
+    background-color: #f4f6ff;
+    background-image:
+      radial-gradient(ellipse 75% 50% at 10% 0%, rgba(56, 189, 248, 0.22), transparent 60%),
+      radial-gradient(ellipse 70% 45% at 90% 5%, rgba(167, 139, 250, 0.24), transparent 58%),
+      radial-gradient(ellipse 65% 50% at 50% 100%, rgba(251, 146, 60, 0.14), transparent 65%);
+    background-attachment: fixed;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }

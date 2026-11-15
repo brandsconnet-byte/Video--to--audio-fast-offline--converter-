@@ -1,0 +1,8 @@
+{
+  "name": "AudioSync Studio",
+  "description": "Precision browser-based video-to-audio converter, DSP mastering workbench, and AI transcription studio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
