@@ -1,9 +1,57 @@
-import type {Metadata} from 'next';
-import './globals.css';
+import type { Metadata, Viewport } from "next";
+import { Plus_Jakarta_Sans, DM_Sans, JetBrains_Mono } from "next/font/google";
+import "./globals.css";
+import {
+  OfflineIndicator,
+  ServiceWorkerRegister,
+} from "@/components/PWAControls";
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-jakarta",
+  display: "swap",
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-dm-sans",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-jetbrains",
+  display: "swap",
+});
+
+export const viewport: Viewport = {
+  themeColor: "#4f46e5",
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
-  title: 'AudioSync Pro - Video to Audio Converter',
-  description: 'High-performance video to audio conversion with AI enhancement and offline support.',
+  title: "AudioSync Studio — Offline Video to Audio Converter",
+  description:
+    "Fast offline video-to-audio converter. Extract MP3 or WAV audio locally in seconds and save directly to your device without internet.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "AudioSync",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "AudioSync Studio — Offline Video to Audio Converter",
+    description:
+      "Fast offline video-to-audio converter. Extract MP3 or WAV audio locally in seconds and save directly to your device without internet.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -12,14 +60,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
-      </head>
-      <body className="font-body antialiased min-h-screen">
+    <html
+      lang="en"
+      className={`${plusJakarta.variable} ${dmSans.variable} ${jetbrainsMono.variable}`}
+    >
+      <body className="min-h-screen text-slate-900 font-sans antialiased selection:bg-indigo-200 selection:text-indigo-950">
+        <ServiceWorkerRegister />
         {children}
+        <OfflineIndicator />
       </body>
     </html>
   );

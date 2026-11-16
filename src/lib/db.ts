@@ -1,177 +1,122 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, setDoc, getDoc, query, where, getDocs } from 'firebase/firestore';
+import { FORMAT_SPECS, TrackItem } from "./types";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
+const DB_NAME = "audiosync_studio_db";
+const DB_VERSION = 1;
+const STORE_NAME = "tracks";
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+export type PersistedTrack = Omit<TrackItem, "sourceFile">;
 
-export interface UserSubscription {
-  userId: string;
-  polarCustomerId?: string;
-  polarSubscriptionId?: string;
-  tier: 'free' | 'premium' | 'pro';
-  status: 'active' | 'canceled' | 'expired';
-  expiresAt?: number;
-  conversionsUsed: number;
-  conversionsLimit: number;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface ConversionRecord {
-  id: string;
-  name: string;
-  originalName: string;
-  type: string;
-  size: number;
-  date: number;
-  blob: Blob;
-}
-
-// Subscription Management
-export async function initializeUserSubscription(userId: string): Promise<UserSubscription> {
-  const userSubRef = doc(db, 'userSubscriptions', userId);
-  const existingDoc = await getDoc(userSubRef);
-
-  if (existingDoc.exists()) {
-    return existingDoc.data() as UserSubscription;
-  }
-
-  const newSubscription: UserSubscription = {
-    userId,
-    tier: 'free',
-    status: 'active',
-    conversionsUsed: 0,
-    conversionsLimit: 5,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  };
-
-  await setDoc(userSubRef, newSubscription);
-  return newSubscription;
-}
-
-export async function getUserSubscription(userId: string): Promise<UserSubscription | null> {
-  try {
-    const userSubRef = doc(db, 'userSubscriptions', userId);
-    const docSnap = await getDoc(userSubRef);
-    return docSnap.exists() ? (docSnap.data() as UserSubscription) : null;
-  } catch (error) {
-    console.error('Error getting user subscription:', error);
-    return null;
-  }
-}
-
-export async function updateUserSubscription(
-  userId: string,
-  updates: Partial<UserSubscription>
-): Promise<void> {
-  try {
-    const userSubRef = doc(db, 'userSubscriptions', userId);
-    await setDoc(
-      userSubRef,
-      {
-        ...updates,
-        updatedAt: Date.now(),
-      },
-      { merge: true }
-    );
-  } catch (error) {
-    console.error('Error updating user subscription:', error);
-  }
-}
-
-export async function incrementConversionsUsed(userId: string): Promise<void> {
-  try {
-    const subscription = await getUserSubscription(userId);
-    if (subscription) {
-      await updateUserSubscription(userId, {
-        conversionsUsed: subscription.conversionsUsed + 1,
-      });
+function openDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !("indexedDB" in window)) {
+      reject(new Error("IndexedDB unavailable"));
+      return;
     }
-  } catch (error) {
-    console.error('Error incrementing conversions:', error);
-  }
-}
-
-export async function upgradeSubscription(
-  userId: string,
-  tier: 'premium' | 'pro',
-  polarCustomerId: string,
-  polarSubscriptionId: string,
-  expiresAt: number
-): Promise<void> {
-  try {
-    const limits = { premium: Infinity, pro: Infinity };
-    await updateUserSubscription(userId, {
-      tier,
-      status: 'active',
-      polarCustomerId,
-      polarSubscriptionId,
-      expiresAt,
-      conversionsLimit: limits[tier],
-      conversionsUsed: 0,
-    });
-  } catch (error) {
-    console.error('Error upgrading subscription:', error);
-  }
-}
-
-// Conversion Records (existing functionality)
-export async function saveConversion(record: ConversionRecord): Promise<void> {
-  try {
-    const conversionsRef = collection(db, 'conversions');
-    const recordData = {
-      name: record.name,
-      originalName: record.originalName,
-      type: record.type,
-      size: record.size,
-      date: record.date,
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
     };
-    await setDoc(doc(conversionsRef, record.id), recordData);
-  } catch (error) {
-    console.error('Error saving conversion:', error);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(request.error ?? new Error("Failed to open IndexedDB"));
+  });
+}
+
+function hydrateTrackBlob(row: PersistedTrack): TrackItem {
+  if (row.outputBlob) {
+    const expectedMime =
+      FORMAT_SPECS[row.options?.format]?.mimeType || "audio/mpeg";
+    if (!(row.outputBlob instanceof Blob) || !row.outputBlob.type) {
+      row.outputBlob = new Blob([row.outputBlob], { type: expectedMime });
+    }
+  }
+  return row;
+}
+
+export async function saveTrackToDB(track: TrackItem): Promise<void> {
+  try {
+    const db = await openDatabase();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const { sourceFile: _omit, ...rest } = track;
+    store.put(rest);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch (err) {
+    console.warn("IndexedDB save skipped:", err);
   }
 }
 
-export async function getConversions(): Promise<ConversionRecord[]> {
+export async function loadTracksFromDB(): Promise<TrackItem[]> {
   try {
-    const conversionsRef = collection(db, 'conversions');
-    const querySnapshot = await getDocs(conversionsRef);
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        name: data.name,
-        originalName: data.originalName,
-        type: data.type,
-        size: data.size,
-        date: data.date,
-        blob: new Blob(),
-      };
+    const db = await openDatabase();
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.getAll();
+    const rows = await new Promise<PersistedTrack[]>((resolve, reject) => {
+      req.onsuccess = () => resolve((req.result as PersistedTrack[]) || []);
+      req.onerror = () => reject(req.error);
     });
-  } catch (error) {
-    console.error('Error getting conversions:', error);
+    db.close();
+    return rows.map(hydrateTrackBlob).sort((a, b) => b.createdAt - a.createdAt);
+  } catch {
     return [];
   }
 }
 
-export async function deleteConversion(id: string): Promise<void> {
+export async function loadTrackByIdFromDB(
+  id: string
+): Promise<TrackItem | null> {
   try {
-    const docRef = doc(db, 'conversions', id);
-    // Note: Firestore deletion - actual implementation depends on your setup
-    await setDoc(docRef, {}, { merge: true });
-  } catch (error) {
-    console.error('Error deleting conversion:', error);
+    const db = await openDatabase();
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get(id);
+    const row = await new Promise<PersistedTrack | undefined>(
+      (resolve, reject) => {
+        req.onsuccess = () => resolve(req.result as PersistedTrack | undefined);
+        req.onerror = () => reject(req.error);
+      }
+    );
+    db.close();
+    return row ? hydrateTrackBlob(row) : null;
+  } catch {
+    return null;
   }
 }
 
-export { db };
+export async function deleteTrackFromDB(id: string): Promise<void> {
+  try {
+    const db = await openDatabase();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).delete(id);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    // Ignore cleanup errors
+  }
+}
+
+export async function clearTracksDB(): Promise<void> {
+  try {
+    const db = await openDatabase();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).clear();
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    // Ignore cleanup errors
+  }
+}
