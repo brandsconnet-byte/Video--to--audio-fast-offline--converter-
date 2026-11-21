@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Plus_Jakarta_Sans, DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import {
@@ -68,6 +69,7 @@ export default function RootLayout({
         <ServiceWorkerRegister />
         {children}
         <OfflineIndicator />
+        <Analytics />
       </body>
     </html>
   );
